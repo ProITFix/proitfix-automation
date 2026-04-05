@@ -1,0 +1,210 @@
+# ProITFix-FieldToolkit_v5_FINAL.ps1
+
+function Write-Color {
+    param($text, $color="White")
+    Write-Host $text -ForegroundColor $color
+}
+
+function Confirm-Action {
+    param($message)
+    Write-Color "`n$message" Yellow
+    $choice = Read-Host "Proceed? (Y/N)"
+    return ($choice -eq "Y" -or $choice -eq "y")
+}
+
+# =============================
+# GLOBAL OUTPUT FILES
+# =============================
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$global:reportFile = "$env:USERPROFILE\Desktop\FTK_Report_$timestamp.txt"
+$global:summaryFile = "$env:USERPROFILE\Desktop\FTK_Summary_$timestamp.txt"
+
+# =============================
+# DIAGNOSTICS
+# =============================
+function Run-Diagnostics {
+
+    if (-not (Confirm-Action "Run FULL diagnostics? (Safe, read-only)")) { return }
+
+    Write-Color "Running diagnostics..." Cyan
+
+    $global:networkOK = Test-Connection 8.8.8.8 -Quiet -Count 1
+    $global:printers = Get-Printer
+    $global:defaultPrinter = $printers | Where-Object {$_.Default -eq $true}
+    $global:gpu = Get-WmiObject Win32_VideoController
+
+    $global:systemLogs = Get-WinEvent -LogName System -MaxEvents 200
+    $global:appLogs = Get-WinEvent -LogName Application -MaxEvents 200
+
+    $global:displayEvents = $systemLogs | Where-Object {$_.Message -match "display|driver"}
+    $global:explorerEvents = $appLogs | Where-Object {$_.Message -match "explorer.exe"}
+
+    $global:imprivata = Get-Process -Name "Imprivata*" -ErrorAction SilentlyContinue
+    $global:citrix = Get-Process -Name "wfcrun32" -ErrorAction SilentlyContinue
+
+    Analyze-Issues
+    Save-Report
+
+    Write-Color "Diagnostics complete. Report saved to Desktop." Green
+}
+
+# =============================
+# SMART ANALYSIS (MULTI-ISSUE)
+# =============================
+function Analyze-Issues {
+
+    $global:analysis = @()
+    $global:nextSteps = @()
+    $global:confidenceScore = 0
+
+    if (-not $networkOK) {
+        $analysis += "Network connectivity issue"
+        $nextSteps += "Check network cable/jack"
+        $confidenceScore += 3
+    }
+
+    if (-not $defaultPrinter) {
+        $analysis += "No default printer (Epic impact)"
+        $nextSteps += "Set default printer"
+        $confidenceScore += 3
+    }
+
+    if ($displayEvents.Count -gt 5) {
+        $analysis += "GPU/driver instability"
+        $nextSteps += "Update GPU driver"
+        $confidenceScore += 2
+    }
+
+    if ($explorerEvents.Count -gt 2) {
+        $analysis += "Explorer crashes detected"
+        $nextSteps += "Restart Explorer / consider reimage"
+        $confidenceScore += 2
+    }
+
+    if ($analysis.Count -eq 0) {
+        $analysis += "Likely hardware issue"
+        $nextSteps += "Swap monitor/cable"
+    }
+
+    if ($confidenceScore -ge 5) { $global:confidence = "High" }
+    elseif ($confidenceScore -ge 3) { $global:confidence = "Medium" }
+    else { $global:confidence = "Low" }
+}
+
+# =============================
+# SAVE REPORT
+# =============================
+function Save-Report {
+
+    "==== FULL REPORT ====" | Out-File $reportFile
+    "Computer: $env:COMPUTERNAME" | Out-File $reportFile -Append
+    "User: $env:USERNAME" | Out-File $reportFile -Append
+    "Date: $(Get-Date)" | Out-File $reportFile -Append
+
+    "`nFindings:" | Out-File $reportFile -Append
+    $analysis | Out-File $reportFile -Append
+
+    "`nNext Steps:" | Out-File $reportFile -Append
+    $nextSteps | Out-File $reportFile -Append
+}
+
+# =============================
+# SMART RECOMMENDATION
+# =============================
+function Smart-Recommendation {
+
+    if (-not (Confirm-Action "Show Smart Recommendation?")) { return }
+
+    Write-Color "`n==== ANALYSIS ====" Cyan
+    Write-Color "Confidence: $confidence" Yellow
+
+    $analysis | ForEach-Object { Write-Color "- $_" White }
+
+    Write-Color "`nNext Steps:" Cyan
+    $nextSteps | ForEach-Object { Write-Color "→ $_" White }
+}
+
+# =============================
+# TECH SUMMARY (SAVED + CLIPBOARD)
+# =============================
+function Show-Summary {
+
+    if (-not (Confirm-Action "Generate ServiceNow summary?")) { return }
+
+    $summary = @"
+--- TECH SUMMARY ---
+Device: $env:COMPUTERNAME
+User: $env:USERNAME
+Confidence: $confidence
+Findings: $($analysis -join "; ")
+Next Steps: $($nextSteps -join "; ")
+--------------------
+"@
+
+    $summary | Out-File $summaryFile
+    $summary | Set-Clipboard
+
+    Write-Color "`nSummary saved + copied to clipboard." Green
+}
+
+# =============================
+# QUICK FIX (CONTROLLED)
+# =============================
+function Quick-Fix {
+
+    if (-not (Confirm-Action "Run Quick Fix?")) { return }
+
+    if ($analysis -match "printer") {
+        Start-Process "ms-settings:printers"
+    }
+
+    if ($analysis -match "Explorer") {
+        if (Confirm-Action "Restart Explorer?") {
+            Stop-Process explorer -Force
+            Start-Process explorer
+        }
+    }
+
+    Write-Color "Quick Fix complete." Green
+}
+
+# =============================
+# RUN ALL (🔥 ONE BUTTON MODE)
+# =============================
+function Run-All {
+
+    if (-not (Confirm-Action "Run FULL AUTO MODE? (Diagnostics + Summary + Recommendations)")) { return }
+
+    Run-Diagnostics
+    Smart-Recommendation
+    Show-Summary
+}
+
+# =============================
+# MENU
+# =============================
+function Main-Menu {
+    do {
+        Write-Color "`n==== PROITFIX TOOLKIT FINAL ====" Cyan
+        Write-Color "1. Run Diagnostics"
+        Write-Color "2. Smart Recommendation"
+        Write-Color "3. Show Summary"
+        Write-Color "4. Quick Fix"
+        Write-Color "5. 🔥 Run Everything"
+        Write-Color "6. Exit"
+
+        $choice = Read-Host "Select option"
+
+        switch ($choice) {
+            "1" { Run-Diagnostics }
+            "2" { Smart-Recommendation }
+            "3" { Show-Summary }
+            "4" { Quick-Fix }
+            "5" { Run-All }
+        }
+
+    } while ($choice -ne "6")
+}
+
+# START
+Main-Menu

@@ -1,0 +1,81 @@
+🧾 Script Name:
+Network Stability Diagnostic – Field Tech Quick Check
+
+📄 Description:
+Collects quick network diagnostics for intermittent connection issues. Helps determine if the issue is cable, NIC, or network-related without requiring admin rights. Outputs clear results for escalation.
+
+⚠️ Safety Notes:
+
+* Read-only / non-destructive
+* No admin rights required
+* Safe for production endpoints
+* Does not modify network settings
+
+💻 PowerShell Script:
+
+```powershell
+# Network Stability Diagnostic Script
+# Designed for intermittent network issues (wired)
+
+Write-Host "=== Network Diagnostic Script Starting ===" -ForegroundColor Cyan
+
+# Get active network adapter
+$adapter = Get-NetAdapter | Where-Object { $_.Status -eq "Up" -and $_.HardwareInterface -eq $true }
+
+if (-not $adapter) {
+    Write-Host "No active wired network adapter found." -ForegroundColor Red
+    exit
+}
+
+Write-Host "`nActive Adapter:" -ForegroundColor Yellow
+$adapter | Format-Table Name, InterfaceDescription, Status, LinkSpeed
+
+# Get IP info
+Write-Host "`nIP Configuration:" -ForegroundColor Yellow
+ipconfig /all
+
+# Get default gateway
+$gateway = (Get-NetRoute -DestinationPrefix "0.0.0.0/0" | 
+            Sort-Object RouteMetric | 
+            Select-Object -First 1).NextHop
+
+Write-Host "`nDefault Gateway: $gateway" -ForegroundColor Yellow
+
+# Ping test to gateway (local network stability)
+Write-Host "`nPinging Gateway (20 tests)..." -ForegroundColor Cyan
+$pingResults = Test-Connection -ComputerName $gateway -Count 20 -ErrorAction SilentlyContinue
+
+if ($pingResults) {
+    $loss = ($pingResults | Where-Object { $_.StatusCode -ne 0 }).Count
+    $avg = ($pingResults | Measure-Object -Property ResponseTime -Average).Average
+
+    Write-Host "`nPing Results:" -ForegroundColor Green
+    Write-Host "Packet Loss: $loss / 20"
+    Write-Host "Average Response Time: $([math]::Round($avg,2)) ms"
+} else {
+    Write-Host "Ping failed completely." -ForegroundColor Red
+}
+
+# Check for recent adapter resets
+Write-Host "`nChecking for Network Adapter Resets (Last 1 Hour)..." -ForegroundColor Cyan
+Get-WinEvent -LogName System | Where-Object {
+    $_.TimeCreated -gt (Get-Date).AddHours(-1) -and
+    ($_.Message -like "*network link is disconnected*" -or $_.Message -like "*reset*")
+} | Select-Object TimeCreated, Id, Message | Format-Table -Wrap
+
+# Check power management setting
+Write-Host "`nChecking Power Management Settings..." -ForegroundColor Cyan
+$powerSetting = Get-NetAdapterPowerManagement -Name $adapter.Name -ErrorAction SilentlyContinue
+
+if ($powerSetting) {
+    $powerSetting | Format-List
+} else {
+    Write-Host "Unable to retrieve power settings (may require admin)." -ForegroundColor Yellow
+}
+
+# Continuous ping option (tech can stop manually)
+Write-Host "`nStarting Live Ping Test (Press Ctrl+C to stop)..." -ForegroundColor Cyan
+ping $gateway -t
+
+Write-Host "`n=== Script Complete ===" -ForegroundColor Cyan
+```

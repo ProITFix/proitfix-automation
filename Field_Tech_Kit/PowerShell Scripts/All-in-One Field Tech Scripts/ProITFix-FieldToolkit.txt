@@ -1,0 +1,202 @@
+﻿🧾 Script Name:
+ProITFix-FieldToolkit.ps1
+________________
+
+
+📄 Description:
+All-in-one Field Tech Toolkit Script for real-world use at Rush.
+Runs quick diagnostics across:
+* 🖥 Display / GPU issues
+* 🖨 Printer + default printer check (Epic-ready)
+* 🌐 Network connectivity
+* 🧑‍💻 System health (uptime, crashes)
+* 🧾 Auto-analysis with likely root cause + next steps
+Designed for:
+* Fast triage onsite
+* Attaching clean output to ServiceNow
+* Reusable across almost every incident
+________________
+
+
+⚠️ Safety Notes:
+* 100% read-only (no system changes)
+* Safe without admin rights
+* Uses built-in Windows tools only
+* Outputs to Desktop
+________________
+
+
+💻 PowerShell Script:
+# ProITFix-FieldToolkit.ps1
+# All-in-one Field Technician Diagnostic Script
+
+$timestamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$outputFile = "$env:USERPROFILE\Desktop\FieldToolkit_$timestamp.txt"
+
+# HEADER
+"==== PROITFIX FIELD TOOLKIT REPORT ====" | Out-File $outputFile
+"Generated: $(Get-Date)" | Out-File $outputFile -Append
+"Computer: $env:COMPUTERNAME" | Out-File $outputFile -Append
+"User: $env:USERNAME" | Out-File $outputFile -Append
+"`n" | Out-File $outputFile -Append
+
+# =============================
+# SYSTEM INFO
+# =============================
+"==== SYSTEM INFO ====" | Out-File $outputFile -Append
+Get-CimInstance Win32_OperatingSystem |
+Select Caption, Version, LastBootUpTime |
+Format-List | Out-File $outputFile -Append
+
+# =============================
+# NETWORK CHECK
+# =============================
+"==== NETWORK CHECK ====" | Out-File $outputFile -Append
+
+ipconfig /all | Out-File $outputFile -Append
+
+"--- Ping Test (Google DNS) ---" | Out-File $outputFile -Append
+Test-Connection -ComputerName 8.8.8.8 -Count 2 |
+Out-File $outputFile -Append
+
+# =============================
+# PRINTER CHECK
+# =============================
+"==== PRINTERS ====" | Out-File $outputFile -Append
+
+Get-Printer | Select Name, Default, Status |
+Format-Table | Out-File $outputFile -Append
+
+$defaultPrinter = Get-Printer | Where-Object {$_.Default -eq $true}
+
+if ($defaultPrinter) {
+   "Default Printer: $($defaultPrinter.Name)" | Out-File $outputFile -Append
+} else {
+   "⚠️ No default printer set (Epic printing may fail)" | Out-File $outputFile -Append
+}
+
+# =============================
+# DISPLAY / GPU CHECK
+# =============================
+"==== GPU INFO ====" | Out-File $outputFile -Append
+
+$gpu = Get-WmiObject Win32_VideoController
+$gpu | Select Name, DriverVersion, Status |
+Format-Table | Out-File $outputFile -Append
+
+# =============================
+# EVENT LOG COLLECTION
+# =============================
+"==== EVENT LOG SUMMARY ====" | Out-File $outputFile -Append
+
+$systemLogs = Get-WinEvent -LogName System -MaxEvents 200
+$appLogs = Get-WinEvent -LogName Application -MaxEvents 200
+
+$displayEvents = $systemLogs | Where-Object {$_.Message -match "display|gpu|driver"}
+$explorerEvents = $appLogs | Where-Object {$_.Message -match "explorer.exe"}
+
+"Display-related events: $($displayEvents.Count)" | Out-File $outputFile -Append
+"Explorer crashes: $($explorerEvents.Count)" | Out-File $outputFile -Append
+
+# =============================
+# AUTO ANALYSIS ENGINE
+# =============================
+"==== AUTO ANALYSIS ====" | Out-File $outputFile -Append
+
+$analysis = @()
+
+# Network issues
+if (-not (Test-Connection -ComputerName 8.8.8.8 -Quiet -Count 1)) {
+   $analysis += "❌ Network connectivity issue"
+}
+
+# Printer issues
+if (-not $defaultPrinter) {
+   $analysis += "⚠️ No default printer (Epic printing risk)"
+}
+
+# Display driver issues
+if ($displayEvents.Count -gt 5) {
+   $analysis += "⚠️ Likely GPU/driver instability"
+}
+
+# Explorer crashes
+if ($explorerEvents.Count -gt 2) {
+   $analysis += "⚠️ OS instability (Explorer crashes)"
+}
+
+# No logs but issue exists
+if ($displayEvents.Count -eq 0 -and $explorerEvents.Count -eq 0) {
+   $analysis += "⚠️ Likely hardware issue (monitor/cable/power)"
+}
+
+# Default
+if ($analysis.Count -eq 0) {
+   $analysis += "✅ No major issues detected"
+}
+
+$analysis | ForEach-Object {
+   $_ | Out-File $outputFile -Append
+}
+
+# =============================
+# RECOMMENDED ACTIONS
+# =============================
+"==== RECOMMENDED ACTIONS ====" | Out-File $outputFile -Append
+
+if ($analysis -match "Network") {
+   "→ Check Ethernet/WiFi connection, VPN, or network jack" | Out-File $outputFile -Append
+}
+
+if ($analysis -match "printer") {
+   "→ Set default printer (required for Epic printing)" | Out-File $outputFile -Append
+}
+
+if ($analysis -match "driver") {
+   "→ Update GPU driver via Software Center" | Out-File $outputFile -Append
+}
+
+if ($analysis -match "Explorer") {
+   "→ Consider reimage if persistent" | Out-File $outputFile -Append
+}
+
+if ($analysis -match "hardware") {
+   "→ Swap monitor, cable, or power source" | Out-File $outputFile -Append
+}
+
+# =============================
+# DONE
+# =============================
+"`nReport saved to: $outputFile" | Out-File $outputFile -Append
+
+Write-Host "Field Toolkit complete. Report saved to:"
+Write-Host $outputFile
+
+	________________
+
+
+⚡ How You’ll Use This in the Field:
+1. Save as: FieldToolkit.ps1
+2. Run on affected machine
+3. Attach output to ticket
+4. Skim AUTO ANALYSIS section → instant direction
+________________
+
+
+🔥 Why This Is Actually Powerful (Real Talk)
+This replaces like:
+* Event Viewer digging
+* Printer guesswork
+* “Is it network or not?” checks
+* First 10 minutes of every ticket
+________________
+
+
+🚀 Next Upgrade (Optional)
+If you want, I can build a v2 Pro version with:
+* Auto export to clipboard
+* Color-coded output
+* Citrix / Epic checks (huge for your environment)
+* Detection of Imprivata / badge login issues
+* One-click “Tech Summary” for ServiceNow notes
+Just say the word 👍
