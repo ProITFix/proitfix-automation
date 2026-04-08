@@ -1,0 +1,44 @@
+✅ Use This Instead (Reliable One-Liner)
+
+🧾 Script Name:
+HPIA Download + Install + Run (Fallback Method)
+
+📄 Description:
+Uses .NET WebClient (more reliable in restricted environments) to download and install HPIA, then runs analysis + install silently.
+
+⚠️ Safety Notes:
+
+Non-destructive
+Requires internet access
+May need admin rights for installs/driver updates
+
+💻 PowerShell Script:
+
+# Download, install, and run HPIA in one go
+$u="https://ftp.hp.com/pub/caps-softpaq/cmit/HPIA.exe";$f="$env:TEMP\HPIA.exe";(New-Object Net.WebClient).DownloadFile($u,$f);Start-Process $f -ArgumentList "/s" -Wait;Start-Process "C:\Program Files\HP\HPIA\HPIA.exe" -ArgumentList "/Operation:Analyze /Action:Install /Silent /ReportFolder:C:\Temp\HPIA" -Wait
+
+⚡ If That STILL Fails (Plan B – Faster in Field)
+
+Try this first before anything:
+
+Get-ChildItem C:\SWSetup -Recurse -Include HPIA.exe -ErrorAction SilentlyContinue
+
+👉 If it finds it:
+
+Start-Process "C:\SWSetup\...\HPIA.exe" -ArgumentList "/Operation:Analyze /Action:Install /Silent" -Wait
+🔥 Real Field Move (What I’d Do)
+
+Given your environment (Rush + Netskope):
+
+Check C:\SWSetup first (fastest win)
+If not there → run the one-liner above
+If download still fails:
+Use Edge manually → download HPIA
+
+Then run:
+Start-Process .\HPIA.exe -ArgumentList "/s" -Wait
+
+💡 Why Your Script Failed (Quick Tech Insight)
+Invoke-WebRequest is less reliable in locked-down environments
+.NET WebClient bypasses a lot of that friction
+Netskope especially can break standard web cmdlets
