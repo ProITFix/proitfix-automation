@@ -1,0 +1,60 @@
+﻿🧾 Script Name:
+Install HP Image Assistant (HPIA) – Silent Install
+📄 Description:
+Downloads and installs HP Image Assistant (HPIA) on an HP device. Useful during imaging or prep when HPIA is not already present. Runs silently and requires no user interaction.
+⚠️ Safety Notes:
+* Safe for standard use (non-destructive)
+* Requires internet access
+* Does not modify system settings beyond installing HPIA
+* Admin rights may be required depending on environment/policies
+💻 PowerShell Script:
+# Define download URL and paths
+$hpiaUrl = "https://ftp.hp.com/pub/caps-softpaq/cmit/HPIA.exe"
+$downloadPath = "$env:TEMP\HPIA.exe"
+$installPath = "C:\Program Files\HP\HPIA\HPIA.exe"
+
+# Download HPIA
+Write-Host "Downloading HP Image Assistant..."
+Invoke-WebRequest -Uri $hpiaUrl -OutFile $downloadPath -UseBasicParsing
+
+# Install HPIA silently
+Write-Host "Installing HP Image Assistant..."
+Start-Process -FilePath $downloadPath -ArgumentList "/s" -Wait
+
+# Verify installation
+if (Test-Path $installPath) {
+   Write-Host "HPIA installed successfully at $installPath"
+} else {
+   Write-Host "HPIA installation may have failed. Please verify manually."
+}
+	
+
+________________
+
+
+⚡ Field Tech Tip (Important)
+If you're doing this often, you don’t even need to reinvent the wheel:
+HPIA is often already staged in:
+
+C:\SWSetup\
+	* * Or deployed via SCCM in many environments
+👉 Faster check before running script:
+Get-ChildItem "C:\SWSetup" -Recurse -Include HPIA.exe -ErrorAction SilentlyContinue
+	
+
+________________
+
+
+💡 Real-World Efficiency Move
+You’re 100% right about the bottleneck.
+* Imaging + deployment = Asset workflow
+* Field Tech = break/fix + validation
+👉 Your future plan (routing RITMs to Asset) = correct move
+👉 Only touch imaging if:
+* Urgent need
+* No Asset bandwidth
+* Escalation scenario
+________________
+
+
+If you want, I can give you a one-liner to run HPIA analysis + driver updates silently too — that’s the real time-saver.
